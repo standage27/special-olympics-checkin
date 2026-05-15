@@ -138,7 +138,7 @@ header {
 
 /* ── Auth page ─────────────────────────────────────────── */
 .auth-wrapper {
-  min-height: calc(100vh - 155px);
+  min-height: calc(100vh - 160px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -633,16 +633,16 @@ tr:last-child td { border-bottom: none; }
 
   header {
     grid-template-columns: 1fr auto;
-    padding: 16px 16px;
+    padding: 10px 16px;
   }
 
   .header-logo img {
-    height: 88px;
-    max-width: 300px;
+    height: 48px;
+    max-width: 200px;
   }
 
-  .header-title strong { font-size: 1.6rem; }
-  .header-title span   { font-size: 0.78rem; }
+  .header-title strong { font-size: 1.1rem; }
+  .header-title span   { font-size: 0.75rem; }
 
   .user-greeting { display: none; }
 
@@ -693,18 +693,17 @@ tr:last-child td { border-bottom: none; }
 @media (max-width: 480px) {
   header {
     padding: 8px 12px;
-    gap: 8px;
+    gap: 6px;
   }
 
   .header-logo { gap: 8px; }
 
   .header-logo img {
-    height: 72px;
-    max-width: 240px;
+    height: 36px;
+    max-width: 160px;
   }
 
-  .header-title strong { font-size: 1.4rem; }
-  .header-title span   { font-size: 0.72rem; }
+  .header-title { display: none; }
 
   .btn-sm {
     padding: 8px 12px;
