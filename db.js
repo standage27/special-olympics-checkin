@@ -1,26 +1,25 @@
-const { neon } = require('@neondatabase/serverless');
-
-let sql;
+const { Pool } = require('pg');
 
 const DEFAULT_EVENT_TYPES = [
   'Athletics','Swimming','Basketball','Soccer','Gymnastics',
   'Bocce','Bowling','Cycling','Golf','Powerlifting','Tennis','Volleyball'
 ];
 
-async function init() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is not set');
-  }
-  sql = neon(process.env.DATABASE_URL);
+let pool;
 
-  await sql`
+async function init() {
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS event_types (
       id   SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL
     )
-  `;
+  `);
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id            SERIAL PRIMARY KEY,
       username      TEXT UNIQUE NOT NULL,
@@ -32,9 +31,9 @@ async function init() {
       admin_notes   TEXT,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
-  `;
+  `);
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS events (
       id                  SERIAL PRIMARY KEY,
       title               TEXT NOT NULL,
@@ -48,9 +47,9 @@ async function init() {
       recurrence_group_id TEXT,
       created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
-  `;
+  `);
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS registrations (
       id            SERIAL PRIMARY KEY,
       user_id       INTEGER NOT NULL,
@@ -60,18 +59,16 @@ async function init() {
       checked_in_at TIMESTAMPTZ,
       UNIQUE(user_id, event_id)
     )
-  `;
+  `);
 
-  // Seed default event types
   for (const name of DEFAULT_EVENT_TYPES) {
-    await sql`INSERT INTO event_types (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`;
+    await pool.query('INSERT INTO event_types (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [name]);
   }
 
   return {
-    query: (text, params) => sql(text, params),
-    one:   async (text, params) => { const r = await sql(text, params); return r[0] || null; },
-    all:   async (text, params) => sql(text, params),
-    run:   async (text, params) => { const r = await sql(text, params); return r; },
+    one: async (text, params) => { const r = await pool.query(text, params); return r.rows[0] || null; },
+    all: async (text, params) => { const r = await pool.query(text, params); return r.rows; },
+    run: async (text, params) => { const r = await pool.query(text, params); return r.rows; },
   };
 }
 

@@ -67,8 +67,6 @@ app.post('/api/signup', upload.single('photo'), async (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   if (username.length < 3)
     return res.status(400).json({ error: 'Username must be at least 3 characters' });
-  if (password.length < 6)
-    return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
   const existing = await db.one('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
   if (existing) return res.status(400).json({ error: 'Username already taken' });
