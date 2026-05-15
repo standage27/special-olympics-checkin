@@ -304,6 +304,15 @@ app.put('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin: delete a participant
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  if (req.params.id == req.session.userId)
+    return res.status(400).json({ error: 'You cannot delete your own account' });
+  await db.run('DELETE FROM registrations WHERE user_id = $1', [req.params.id]);
+  await db.run('DELETE FROM users WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
 // Admin: update notes on a participant
 app.put('/api/admin/users/:id/notes', requireAdmin, async (req, res) => {
   const { notes } = req.body;

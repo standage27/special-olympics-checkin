@@ -685,11 +685,22 @@ async function loadAdminUsers() {
                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
               </select>
             </td>
-            <td><button class="btn btn-secondary btn-sm" onclick="openParticipantModal(${u.id})">View</button></td>
+            <td style="display:flex;gap:6px">
+              <button class="btn btn-secondary btn-sm" onclick="openParticipantModal(${u.id})">View</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteParticipant(${u.id},'${esc(u.full_name)}')">Delete</button>
+            </td>
           </tr>`).join('')}
         </tbody>
       </table>
     </div>`;
+}
+
+async function deleteParticipant(userId, fullName) {
+  if (!confirm(`Are you sure you want to delete ${fullName}?\n\nThis will permanently remove their account and all registrations.`)) return;
+  const data = await api('DELETE', `/api/admin/users/${userId}`);
+  if (data.error) { toast(data.error, 'error'); return; }
+  toast(`${fullName} has been deleted.`, 'success');
+  loadAdminUsers();
 }
 
 async function changeRole(userId, role) {
