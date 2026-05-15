@@ -780,6 +780,27 @@ tr:last-child td { border-bottom: none; }
   .table-wrap { border-radius: 8px; }
 }
 
+/* ── Admin events card grid ────────────────────────────── */
+.admin-events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.admin-event-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .admin-events-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
 /* ── Archive link & divider ────────────────────────────── */
 .btn-archive-link {
   background: none;

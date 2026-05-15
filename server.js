@@ -306,8 +306,9 @@ app.put('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
 
 // Admin: delete a participant
 app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
-  if (req.params.id == req.session.userId)
-    return res.status(400).json({ error: 'You cannot delete your own account' });
+  const target = await db.one('SELECT role FROM users WHERE id = $1', [req.params.id]);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.role === 'admin') return res.status(400).json({ error: 'Admin accounts cannot be deleted' });
   await db.run('DELETE FROM registrations WHERE user_id = $1', [req.params.id]);
   await db.run('DELETE FROM users WHERE id = $1', [req.params.id]);
   res.json({ ok: true });

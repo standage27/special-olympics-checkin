@@ -398,7 +398,7 @@ function eventCard(e) {
     actions = `<span class="checked-in-badge">✓ Checked in${e.checked_in_at ? ' at ' + formatTime(e.checked_in_at) : ''}</span>`;
   } else if (registered) {
     actions = `
-      ${!isPast ? `<button class="btn btn-success btn-sm" onclick="doCheckin(${e.id})">Check In on Arrival</button>` : ''}
+      ${!isPast ? `<button class="btn btn-success btn-sm" onclick="doCheckin(${e.id})">Check In</button>` : ''}
       <button class="btn btn-secondary btn-sm" onclick="doUnregister(${e.id})">Cancel Registration</button>`;
   } else {
     actions = `<button class="btn btn-primary btn-sm" onclick="doRegister(${e.id})">Register</button>`;
@@ -487,31 +487,37 @@ async function loadAdminEvents() {
     el.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><p>No sessions yet. Add one above.</p></div>`;
     return;
   }
-  el.innerHTML = `
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Session</th><th>Type</th><th>Start</th><th>End</th><th>Location</th><th>Registered</th><th>Actions</th></tr></thead>
-        <tbody>
-          ${events.map(e => {
-            const start = e.start_time || e.date_time;
-            const end   = e.end_time;
-            return `<tr>
-              <td><strong>${esc(e.title)}</strong>${e.recurrence ? ` <span style="font-size:0.72rem;background:#f0f0f0;border-radius:4px;padding:2px 6px">↻ ${recurrenceLabel(e.recurrence)}</span>` : ''}${e.notes ? `<br><small style="color:#888">${esc(e.notes)}</small>` : ''}</td>
-              <td>${esc(e.event_type)}</td>
-              <td style="white-space:nowrap">${formatDateTime(start)}</td>
-              <td style="white-space:nowrap">${end ? (sameDay(start,end) ? formatTime(end) : formatDateTime(end)) : '—'}</td>
-              <td>${esc(e.location)} <a class="btn-map-link" href="https://www.google.com/maps/search/${encodeURIComponent(e.location)}" target="_blank" rel="noopener">🗺</a></td>
-              <td><strong>${e.registrant_count}</strong></td>
-              <td><div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="btn btn-secondary btn-sm" onclick="viewRegistrations(${e.id},'${esc(e.title)}')">Attendees</button>
-                <button class="btn btn-secondary btn-sm" onclick="openEditEventModal(${e.id})">Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteEvent(${e.id})">Delete</button>
-              </div></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>`;
+  el.innerHTML = `<div class="admin-events-grid">${events.map(e => {
+    const start   = e.start_time || e.date_time;
+    const end     = e.end_time;
+    const timeStr = end
+      ? `${formatDateTime(start)} – ${sameDay(start,end) ? formatTime(end) : formatDateTime(end)}`
+      : formatDateTime(start);
+    return `
+      <div class="admin-event-card">
+        <div class="event-card-header">
+          <h3>${esc(e.title)}</h3>
+          <span class="event-type-badge">${esc(e.event_type)}</span>
+        </div>
+        <div class="event-card-body">
+          <div class="event-meta">
+            <div class="event-meta-item"><span class="icon">🕐</span>${timeStr}</div>
+            <div class="event-meta-item"><span class="icon">📍</span>${esc(e.location)}
+              <a class="btn-map-link" href="https://www.google.com/maps/search/${encodeURIComponent(e.location)}" target="_blank" rel="noopener">🗺 Map</a>
+            </div>
+            <div class="event-meta-item"><span class="icon">👥</span><strong>${e.registrant_count}</strong> registered
+              ${e.recurrence ? `<span style="margin-left:8px;font-size:0.75rem;background:#f0f0f0;border-radius:4px;padding:2px 6px">↻ ${recurrenceLabel(e.recurrence)}</span>` : ''}
+            </div>
+          </div>
+          ${e.notes ? `<div class="event-notes">${esc(e.notes)}</div>` : ''}
+          <div class="event-card-actions">
+            <button class="btn btn-secondary btn-sm" onclick="viewRegistrations(${e.id},'${esc(e.title)}')">Attendees</button>
+            <button class="btn btn-secondary btn-sm" onclick="openEditEventModal(${e.id})">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteEvent(${e.id})">Delete</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('')}</div>`;
   if (document.getElementById('adminEventsCalView').style.display !== 'none')
     renderCalendar('adminEventsCalendar', adminAllEvents, true);
 }
@@ -687,7 +693,7 @@ async function loadAdminUsers() {
             </td>
             <td style="display:flex;gap:6px">
               <button class="btn btn-secondary btn-sm" onclick="openParticipantModal(${u.id})">View</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteParticipant(${u.id},'${esc(u.full_name)}')">Delete</button>
+              ${u.role !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteParticipant(${u.id},'${esc(u.full_name)}')">Delete</button>` : ''}
             </td>
           </tr>`).join('')}
         </tbody>
