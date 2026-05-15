@@ -145,6 +145,8 @@ header {
   justify-content: center;
   padding: 24px;
   background: linear-gradient(135deg, #fff 0%, #fce8ea 100%);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .auth-card {
@@ -711,12 +713,30 @@ tr:last-child td { border-bottom: none; }
   }
 
   /* Full-width sign-out button label shortened on tiny screens */
-  .auth-card {
-    padding: 20px 16px;
-    border-radius: 10px;
+  .auth-wrapper {
+    justify-content: flex-start;
+    padding: 12px;
+    min-height: 0;
+    height: calc(100vh - 52px);
+    overflow-y: auto;
   }
 
-  .auth-wrapper { padding: 12px; }
+  .auth-card {
+    padding: 16px;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 100%;
+    box-shadow: none;
+    margin-top: 0;
+  }
+
+  .auth-tabs { margin-bottom: 16px; }
+
+  .auth-form h2 { font-size: 1.1rem; margin-bottom: 14px; }
+
+  .form-group { margin-bottom: 12px; }
+
+  .photo-upload-area { width: 72px; height: 72px; }
 
   /* Modal slides up from bottom on phones */
   .modal-overlay {
