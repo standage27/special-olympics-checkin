@@ -1,0 +1,8 @@
+node_modules/
+checkin.db
+public/uploads/
+TempUserNamePWD.txt
+*.txt
+.env
+.env.*
+.claude/

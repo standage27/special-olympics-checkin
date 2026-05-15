@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ── Persistent header (all pages) ───────────────────── -->
+  <header id="siteHeader">
+    <div class="header-logo">
+      <img src="img/so_british_columbia_2-line_2c-grey.svg" alt="Special Olympics BC">
+      <div class="header-title">
+        <strong>Booking System</strong>
+      </div>
+    </div>
+    <div class="header-center-logo">
+      <img src="img/logo.png" alt="Special Olympics Canada" onerror="this.style.display='none'">
+    </div>
+    <div class="header-right" id="headerUserArea" style="display:none">
+      <span class="user-greeting" id="headerGreeting"></span>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- ── Auth page ───────────────────────────────────────── -->
+  <div id="authPage" class="page active">
+    <div class="auth-wrapper">
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <div class="auth-tab active" onclick="switchAuthTab('login')">Sign In</div>
+          <div class="auth-tab" onclick="switchAuthTab('signup')">Create Account</div>
+        </div>
+
+        <!-- Login -->
+        <form id="loginForm" class="auth-form active" onsubmit="doLogin(event)">
+          <h2>Welcome back</h2>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="loginUsername" autocomplete="username" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" required>
+          </div>
+          <div id="loginError" class="error-msg"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">Sign In</button>
+        </form>
+
+        <!-- Signup -->
+        <form id="signupForm" class="auth-form" onsubmit="doSignup(event)">
+          <h2>Create your account</h2>
+          <div class="form-group photo-upload-group">
+            <label>Profile Photo <span style="font-weight:400;color:#999">(optional)</span></label>
+            <div class="photo-upload-area" id="photoUploadArea" onclick="document.getElementById('signupPhoto').click()">
+              <img id="photoPreview" src="" alt="" style="display:none">
+              <div id="photoPlaceholder">
+                <div style="font-size:2rem">📷</div>
+                <div style="font-size:0.85rem;color:#888;margin-top:4px">Tap to add photo</div>
+              </div>
+            </div>
+            <input type="file" id="signupPhoto" accept="image/*" style="display:none" onchange="previewPhoto(this)">
+          </div>
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="signupName" autocomplete="name" required>
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="signupUsername" autocomplete="username" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="signupPassword" autocomplete="new-password" required>
+          </div>
+          <div id="signupError" class="error-msg"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">Create Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main app ─────────────────────────────────────────── -->
+  <div id="appPage" class="page">
+
+    <!-- Participant nav -->
+    <div id="participantNav" class="nav-tabs" style="display:none">
+      <div class="nav-tab active" data-target="upcomingTab" onclick="switchTab('upcomingTab', this)">Upcoming Events</div>
+      <div class="nav-tab" data-target="myEventsTab" onclick="switchTab('myEventsTab', this)">My Registrations</div>
+    </div>
+
+    <!-- Admin nav -->
+    <div id="adminNav" class="nav-tabs" style="display:none">
+      <div class="nav-tab active" data-target="adminEventsTab" onclick="switchAdminTab('adminEventsTab', this)">Training Sessions</div>
+      <div class="nav-tab" data-target="adminUsersTab" onclick="switchAdminTab('adminUsersTab', this)">Participants</div>
+    </div>
+
+
+    <!-- ── Participant content ─────────────────────────────── -->
+    <div id="participantContent" style="display:none">
+      <div id="upcomingTab" class="tab-content active">
+        <div class="container">
+          <div class="section-header">
+            <h2>Upcoming Training Sessions</h2>
+            <div class="view-toggle-group">
+              <button class="view-toggle-btn active" id="pListBtn" onclick="setParticipantView('list')">&#9776; List</button>
+              <button class="view-toggle-btn" id="pCalBtn" onclick="setParticipantView('calendar')">&#128197; Calendar</button>
+            </div>
+          </div>
+          <div id="upcomingListView">
+            <div id="upcomingEvents" class="events-grid">
+              <div class="empty-state"><div class="empty-icon">📅</div><p>Loading events…</p></div>
+            </div>
+          </div>
+          <div id="upcomingCalView" style="display:none">
+            <div id="upcomingCalendar"></div>
+          </div>
+        </div>
+      </div>
+      <div id="myEventsTab" class="tab-content">
+        <div class="container">
+          <div class="section-header">
+            <h2>My Registrations</h2>
+            <button id="archiveToggleBtn" class="btn-archive-link" onclick="toggleArchive()" style="display:none"></button>
+          </div>
+          <div id="myEvents" class="events-grid">
+            <div class="empty-state"><div class="empty-icon">📋</div><p>Loading…</p></div>
+          </div>
+          <div id="myEventsArchive" style="display:none">
+            <div class="archive-divider"><span>Past Registrations</span></div>
+            <div id="myEventsArchiveList" class="events-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Admin content ───────────────────────────────────── -->
+    <div id="adminContent" style="display:none">
+      <div id="adminEventsTab" class="tab-content active">
+        <div class="container">
+          <div class="section-header">
+            <h2>Training Sessions</h2>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div class="view-toggle-group">
+                <button class="view-toggle-btn active" id="aListBtn" onclick="setAdminView('list')">&#9776; List</button>
+                <button class="view-toggle-btn" id="aCalBtn" onclick="setAdminView('calendar')">&#128197; Calendar</button>
+              </div>
+              <button class="btn btn-primary" onclick="openAddEventModal()">+ Add Session</button>
+            </div>
+          </div>
+          <div id="adminEventsListView">
+            <div id="adminEventsList"></div>
+          </div>
+          <div id="adminEventsCalView" style="display:none">
+            <div id="adminEventsCalendar"></div>
+          </div>
+        </div>
+      </div>
+      <div id="adminUsersTab" class="tab-content">
+        <div class="container">
+          <div class="section-header"><h2>Registered Participants</h2></div>
+          <div id="adminUsersList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Add/Edit event modal ─────────────────────────────── -->
+  <div id="eventModal" class="modal-overlay">
+    <div class="modal" style="max-width:580px">
+      <div class="modal-header">
+        <h3 id="eventModalTitle">Add Training Session</h3>
+        <button class="modal-close" onclick="closeEventModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="saveEvent(event)">
+          <div class="form-group">
+            <label>Session Title</label>
+            <input type="text" id="eventTitle" placeholder="e.g. Saturday Morning Athletics" required>
+          </div>
+          <div class="form-group">
+            <label>Event Type</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="eventType" required style="flex:1"></select>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openAddEventTypeModal()">+ Add Type</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Start Date &amp; Time</label>
+            <input type="datetime-local" id="eventStartTime" required>
+          </div>
+          <div class="form-group">
+            <label>End Date &amp; Time</label>
+            <input type="datetime-local" id="eventEndTime" required>
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" id="eventLocation" placeholder="e.g. City Recreation Centre, Hall B" required>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="eventNotes" placeholder="Any extra info for participants…"></textarea>
+          </div>
+          <div class="form-group" id="recurrenceGroup">
+            <label>Recurrence</label>
+            <select id="eventRecurrence" onchange="updateRecurrenceHint()">
+              <option value="">One-time session</option>
+              <option value="weekly">Weekly (12 sessions)</option>
+              <option value="biweekly">Every 2 weeks (6 sessions)</option>
+              <option value="monthly">Monthly (6 months)</option>
+            </select>
+            <small id="recurrenceHint" style="color:#888;margin-top:5px;display:block"></small>
+          </div>
+          <div id="eventModalError" class="error-msg"></div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button type="submit" class="btn btn-primary" style="flex:1">Save Session</button>
+            <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+<!-- ── Registrations modal (admin) ─────────────────────── -->
+  <div id="regsModal" class="modal-overlay">
+    <div class="modal" style="max-width:600px">
+      <div class="modal-header">
+        <h3 id="regsModalTitle">Registrations</h3>
+        <button class="modal-close" onclick="closeRegsModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="regsModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ── Add event type modal ─────────────────────────────── -->
+  <div id="eventTypeModal" class="modal-overlay">
+    <div class="modal" style="max-width:400px">
+      <div class="modal-header">
+        <h3>Add Event Type</h3>
+        <button class="modal-close" onclick="closeEventTypeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="saveEventType(event)">
+          <div class="form-group">
+            <label>Type Name</label>
+            <input type="text" id="newEventTypeName" placeholder="e.g. Floor Hockey" required>
+          </div>
+          <div id="eventTypeError" class="error-msg"></div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button type="submit" class="btn btn-primary" style="flex:1">Add Type</button>
+            <button type="button" class="btn btn-secondary" onclick="closeEventTypeModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Participant details modal (admin) ─────────────────── -->
+  <div id="participantModal" class="modal-overlay">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <h3 id="participantModalTitle">Participant Details</h3>
+        <button class="modal-close" onclick="closeParticipantModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="participantModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ── Event detail modal (calendar click) ──────────────── -->
+  <div id="eventDetailModal" class="modal-overlay">
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header">
+        <h3 id="eventDetailTitle">Session Details</h3>
+        <button class="modal-close" onclick="closeEventDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="eventDetailBody"></div>
+    </div>
+  </div>
+
+  <!-- ── Toast ────────────────────────────────────────────── -->
+  <div id="toast" class="toast"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
