@@ -614,6 +614,27 @@ tr:last-child td { border-bottom: none; }
   margin: 0 auto 12px;
 }
 
+/* ── Profile avatar button (header) ───────────────────── */
+.btn-profile-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: #e8e8e8 center/cover no-repeat;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: border-color 0.15s;
+  padding: 0;
+}
+.btn-profile-avatar:hover { border-color: var(--red); }
+
 /* ── Map link button ───────────────────────────────────── */
 .btn-map-link {
   background: none;
@@ -968,4 +989,20 @@ tr:last-child td { border-bottom: none; }
   .form-group textarea {
     font-size: 16px;
   }
+}
+
+/* ── Landscape / short-viewport modal fix ──────────────── */
+@media (max-height: 520px) {
+  .modal-overlay { padding: 4px 12px; align-items: flex-start; }
+  .modal {
+    max-height: 96vh;
+    max-width: min(560px, 100%) !important;
+    border-radius: 10px;
+  }
+  .modal-header { padding: 10px 14px 0; margin-bottom: 10px; }
+  .modal-body   { padding: 0 14px 14px; }
+  .form-group   { margin-bottom: 8px; }
+  .form-group input,
+  .form-group select,
+  .form-group textarea { padding: 7px 10px; }
 }

@@ -110,14 +110,19 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/me', (req, res) => {
+app.get('/api/me', async (req, res) => {
   if (!req.session.userId) return res.json({ loggedIn: false });
+  const user = await db.one(
+    'SELECT CASE WHEN photo_data IS NOT NULL THEN id ELSE NULL END AS photo_user_id FROM users WHERE id = $1',
+    [req.session.userId]
+  );
   res.json({
-    loggedIn: true,
-    userId:   req.session.userId,
-    username: req.session.username,
-    fullName: req.session.fullName,
-    role:     req.session.role
+    loggedIn:      true,
+    userId:        req.session.userId,
+    username:      req.session.username,
+    fullName:      req.session.fullName,
+    role:          req.session.role,
+    photo_user_id: user?.photo_user_id || null
   });
 });
 
@@ -302,6 +307,25 @@ app.put('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Invalid role' });
   await db.run('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
   res.json({ ok: true });
+});
+
+// Profile: update own name
+app.put('/api/profile/name', requireAuth, async (req, res) => {
+  const { full_name } = req.body;
+  if (!full_name?.trim()) return res.status(400).json({ error: 'Name is required' });
+  await db.run('UPDATE users SET full_name = $1 WHERE id = $2', [full_name.trim(), req.session.userId]);
+  req.session.fullName = full_name.trim();
+  res.json({ ok: true, fullName: full_name.trim() });
+});
+
+// Profile: update own photo
+app.post('/api/profile/photo', requireAuth, upload.single('photo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No photo provided' });
+  const photoData = req.file.buffer.toString('base64');
+  const photoMime = req.file.mimetype;
+  await db.run('UPDATE users SET photo_data = $1, photo_mime = $2 WHERE id = $3',
+    [photoData, photoMime, req.session.userId]);
+  res.json({ ok: true, photo_user_id: req.session.userId });
 });
 
 // Admin: delete a participant

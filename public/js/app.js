@@ -87,14 +87,79 @@ async function doLogout() {
   document.getElementById('appPage').classList.remove('active');
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
+  // Clear signup form so previous user's details don't persist
+  document.getElementById('signupName').value = '';
+  document.getElementById('signupUsername').value = '';
+  document.getElementById('signupPassword').value = '';
+  document.getElementById('signupPhoto').value = '';
+  const preview = document.getElementById('photoPreview');
+  preview.src = '';
+  preview.style.display = 'none';
+  document.getElementById('photoPlaceholder').style.display = '';
+}
+
+// ── Profile modal ─────────────────────────────────────────────────────────────
+function openProfileModal() {
+  document.getElementById('profileFullName').value = currentUser.fullName || '';
+  document.getElementById('profileUsername').value = currentUser.username || '';
+  document.getElementById('profileRole').value     = currentUser.role || '';
+  document.getElementById('profileError').classList.remove('show');
+  document.getElementById('profileAvatarDisplay').innerHTML =
+    avatarHtml(currentUser.photo_user_id, currentUser.fullName, 'lg');
+  document.getElementById('profileModal').classList.add('open');
+}
+
+function closeProfileModal() {
+  document.getElementById('profileModal').classList.remove('open');
+}
+
+async function saveProfileName() {
+  const fullName = document.getElementById('profileFullName').value.trim();
+  const errEl    = document.getElementById('profileError');
+  errEl.classList.remove('show');
+  if (!fullName) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
+  const data = await api('PUT', '/api/profile/name', { full_name: fullName });
+  if (data.error) { errEl.textContent = data.error; errEl.classList.add('show'); return; }
+  currentUser.fullName = data.fullName;
+  document.getElementById('headerGreeting').textContent = `Hi, ${data.fullName}`;
+  updateHeaderAvatar();
+  toast('Profile updated!', 'success');
+  closeProfileModal();
+}
+
+async function uploadProfilePhoto() {
+  const file = document.getElementById('profilePhotoInput').files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('photo', file);
+  const data = await apiForm('POST', '/api/profile/photo', fd);
+  if (data.error) { toast(data.error, 'error'); return; }
+  currentUser.photo_user_id = data.photo_user_id;
+  updateHeaderAvatar();
+  document.getElementById('profileAvatarDisplay').innerHTML =
+    avatarHtml(data.photo_user_id, currentUser.fullName, 'lg');
+  toast('Photo updated!', 'success');
 }
 
 // ── Show app ──────────────────────────────────────────────────────────────────
+function updateHeaderAvatar() {
+  const btn = document.getElementById('headerAvatar');
+  if (!btn) return;
+  if (currentUser.photo_user_id) {
+    btn.style.backgroundImage = `url(/api/photos/${currentUser.photo_user_id})`;
+    btn.textContent = '';
+  } else {
+    btn.style.backgroundImage = '';
+    btn.textContent = (currentUser.fullName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  }
+}
+
 function showApp() {
   document.getElementById('authPage').classList.remove('active');
   document.getElementById('appPage').classList.add('active');
   document.getElementById('headerGreeting').textContent = `Hi, ${currentUser.fullName}`;
   document.getElementById('headerUserArea').style.display = 'flex';
+  updateHeaderAvatar();
 
   if (currentUser.role === 'admin') {
     document.getElementById('adminNav').style.display = 'flex';
@@ -801,7 +866,7 @@ function toast(msg, type = 'success') {
 }
 
 // Close modals on backdrop click
-['eventModal','regsModal','eventTypeModal','participantModal','eventDetailModal'].forEach(id => {
+['eventModal','regsModal','eventTypeModal','participantModal','eventDetailModal','profileModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target.id === id) document.getElementById(id).classList.remove('open');
   });
