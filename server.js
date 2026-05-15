@@ -1,28 +1,19 @@
-const express  = require('express');
-const session  = require('express-session');
-const bcrypt   = require('bcryptjs');
-const path     = require('path');
-const fs       = require('fs');
-const multer   = require('multer');
-const { init } = require('./db');
+const express      = require('express');
+const session      = require('express-session');
+const PgSession    = require('connect-pg-simple')(session);
+const bcrypt       = require('bcryptjs');
+const path         = require('path');
+const multer       = require('multer');
+const { neon }     = require('@neondatabase/serverless');
+const { init }     = require('./db');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Photo upload setup ────────────────────────────────────────────────────────
-const uploadsDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: uploadsDir,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `user_${Date.now()}${ext}`);
-  }
-});
+// ── Photo upload (memory storage — saved to DB as base64) ──────────────────────
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (/^image\//.test(file.mimetype)) cb(null, true);
     else cb(new Error('Only image files are allowed'));
@@ -33,7 +24,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
-  secret: 'so-checkin-secret-2024',
+  store: new PgSession({
+    conString: process.env.DATABASE_URL,
+    tableName: 'user_sessions',
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET || 'so-checkin-secret-2024',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 8 * 60 * 60 * 1000 }
@@ -52,9 +48,19 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// ── Serve user photos from DB ─────────────────────────────────────────────────
+app.get('/api/photos/:userId', async (req, res) => {
+  const user = await db.one('SELECT photo_data, photo_mime FROM users WHERE id = $1', [req.params.userId]);
+  if (!user || !user.photo_data) return res.status(404).end();
+  const buf = Buffer.from(user.photo_data, 'base64');
+  res.setHeader('Content-Type', user.photo_mime || 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(buf);
+});
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-app.post('/api/signup', upload.single('photo'), (req, res) => {
+app.post('/api/signup', upload.single('photo'), async (req, res) => {
   const { username, password, full_name } = req.body;
   if (!username || !password || !full_name)
     return res.status(400).json({ error: 'All fields are required' });
@@ -63,17 +69,18 @@ app.post('/api/signup', upload.single('photo'), (req, res) => {
   if (password.length < 6)
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-  const existing = db.get('SELECT id FROM users WHERE username = ? COLLATE NOCASE', [username.trim()]);
+  const existing = await db.one('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
   if (existing) return res.status(400).json({ error: 'Username already taken' });
 
-  const hash    = bcrypt.hashSync(password, 10);
-  const photo   = req.file ? req.file.filename : null;
+  const hash      = bcrypt.hashSync(password, 10);
+  const photoData = req.file ? req.file.buffer.toString('base64') : null;
+  const photoMime = req.file ? req.file.mimetype : null;
   try {
-    const result = db.run(
-      'INSERT INTO users (username, password_hash, full_name, photo_filename) VALUES (?, ?, ?, ?)',
-      [username.trim(), hash, full_name.trim(), photo]
+    const rows = await db.all(
+      'INSERT INTO users (username, password_hash, full_name, photo_data, photo_mime) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [username.trim(), hash, full_name.trim(), photoData, photoMime]
     );
-    req.session.userId   = result.lastInsertRowid;
+    req.session.userId   = rows[0].id;
     req.session.username = username.trim();
     req.session.fullName = full_name.trim();
     req.session.role     = 'participant';
@@ -83,12 +90,12 @@ app.post('/api/signup', upload.single('photo'), (req, res) => {
   }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: 'Username and password required' });
 
-  const user = db.get('SELECT * FROM users WHERE username = ? COLLATE NOCASE', [username.trim()]);
+  const user = await db.one('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
   if (!user || !bcrypt.compareSync(password, user.password_hash))
     return res.status(401).json({ error: 'Invalid username or password' });
 
@@ -117,26 +124,26 @@ app.get('/api/me', (req, res) => {
 
 // ── Event types ───────────────────────────────────────────────────────────────
 
-app.get('/api/event-types', requireAuth, (req, res) => {
-  const types = db.all('SELECT id, name FROM event_types ORDER BY name ASC');
+app.get('/api/event-types', requireAuth, async (req, res) => {
+  const types = await db.all('SELECT id, name FROM event_types ORDER BY name ASC');
   res.json(types);
 });
 
-app.post('/api/event-types', requireAdmin, (req, res) => {
+app.post('/api/event-types', requireAdmin, async (req, res) => {
   const { name } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
-  const exists = db.get('SELECT id FROM event_types WHERE name = ? COLLATE NOCASE', [name.trim()]);
+  const exists = await db.one('SELECT id FROM event_types WHERE LOWER(name) = LOWER($1)', [name.trim()]);
   if (exists) return res.status(400).json({ error: 'Type already exists' });
-  const result = db.run('INSERT INTO event_types (name) VALUES (?)', [name.trim()]);
-  res.json({ ok: true, id: result.lastInsertRowid, name: name.trim() });
+  const rows = await db.all('INSERT INTO event_types (name) VALUES ($1) RETURNING id', [name.trim()]);
+  res.json({ ok: true, id: rows[0].id, name: name.trim() });
 });
 
-app.delete('/api/event-types/:id', requireAdmin, (req, res) => {
-  db.run('DELETE FROM event_types WHERE id = ?', [req.params.id]);
+app.delete('/api/event-types/:id', requireAdmin, async (req, res) => {
+  await db.run('DELETE FROM event_types WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });
 
-// ── Recurring instance generator ─────────────────────────────────────────────
+// ── Recurring instance generator ──────────────────────────────────────────────
 function generateRecurringInstances(startTime, endTime, recurrence) {
   if (!recurrence) return [[startTime, endTime]];
   const pad = n => String(n).padStart(2, '0');
@@ -163,8 +170,8 @@ function generateRecurringInstances(startTime, endTime, recurrence) {
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
-app.get('/api/events', requireAuth, (req, res) => {
-  const events = db.all(`
+app.get('/api/events', requireAuth, async (req, res) => {
+  const events = await db.all(`
     SELECT e.*,
       u.full_name AS created_by_name,
       r.id AS registration_id,
@@ -173,13 +180,13 @@ app.get('/api/events', requireAuth, (req, res) => {
       (SELECT COUNT(*) FROM registrations WHERE event_id = e.id) AS registrant_count
     FROM events e
     JOIN users u ON e.created_by = u.id
-    LEFT JOIN registrations r ON r.event_id = e.id AND r.user_id = ?
+    LEFT JOIN registrations r ON r.event_id = e.id AND r.user_id = $1
     ORDER BY e.start_time ASC
   `, [req.session.userId]);
   res.json(events);
 });
 
-app.post('/api/events', requireAdmin, (req, res) => {
+app.post('/api/events', requireAdmin, async (req, res) => {
   const { title, event_type, start_time, end_time, location, notes, recurrence } = req.body;
   if (!title || !event_type || !start_time || !end_time || !location)
     return res.status(400).json({ error: 'Title, type, start/end time and location are required' });
@@ -188,11 +195,11 @@ app.post('/api/events', requireAdmin, (req, res) => {
     const groupId   = instances.length > 1 ? `grp_${Date.now()}` : null;
     let lastId;
     for (const [s, e] of instances) {
-      const result = db.run(
-        'INSERT INTO events (title, event_type, start_time, end_time, date_time, location, notes, created_by, recurrence, recurrence_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [title.trim(), event_type.trim(), s, e, s, location.trim(), notes?.trim() || null, req.session.userId, recurrence || null, groupId]
+      const rows = await db.all(
+        'INSERT INTO events (title, event_type, start_time, end_time, location, notes, created_by, recurrence, recurrence_group_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+        [title.trim(), event_type.trim(), s, e, location.trim(), notes?.trim() || null, req.session.userId, recurrence || null, groupId]
       );
-      lastId = result.lastInsertRowid;
+      lastId = rows[0].id;
     }
     res.json({ ok: true, id: lastId, count: instances.length });
   } catch (e) {
@@ -200,14 +207,14 @@ app.post('/api/events', requireAdmin, (req, res) => {
   }
 });
 
-app.put('/api/events/:id', requireAdmin, (req, res) => {
+app.put('/api/events/:id', requireAdmin, async (req, res) => {
   const { title, event_type, start_time, end_time, location, notes } = req.body;
   if (!title || !event_type || !start_time || !end_time || !location)
     return res.status(400).json({ error: 'Title, type, start/end time and location are required' });
   try {
-    db.run(
-      'UPDATE events SET title=?, event_type=?, start_time=?, end_time=?, date_time=?, location=?, notes=? WHERE id=?',
-      [title.trim(), event_type.trim(), start_time, end_time, start_time, location.trim(), notes?.trim() || null, req.params.id]
+    await db.run(
+      'UPDATE events SET title=$1, event_type=$2, start_time=$3, end_time=$4, location=$5, notes=$6 WHERE id=$7',
+      [title.trim(), event_type.trim(), start_time, end_time, location.trim(), notes?.trim() || null, req.params.id]
     );
     res.json({ ok: true });
   } catch (e) {
@@ -215,103 +222,104 @@ app.put('/api/events/:id', requireAdmin, (req, res) => {
   }
 });
 
-app.delete('/api/events/group/:groupId', requireAdmin, (req, res) => {
-  const events = db.all('SELECT id FROM events WHERE recurrence_group_id = ?', [req.params.groupId]);
-  for (const ev of events) db.run('DELETE FROM registrations WHERE event_id = ?', [ev.id]);
-  db.run('DELETE FROM events WHERE recurrence_group_id = ?', [req.params.groupId]);
+app.delete('/api/events/group/:groupId', requireAdmin, async (req, res) => {
+  const events = await db.all('SELECT id FROM events WHERE recurrence_group_id = $1', [req.params.groupId]);
+  for (const ev of events) await db.run('DELETE FROM registrations WHERE event_id = $1', [ev.id]);
+  await db.run('DELETE FROM events WHERE recurrence_group_id = $1', [req.params.groupId]);
   res.json({ ok: true });
 });
 
-app.delete('/api/events/:id', requireAdmin, (req, res) => {
-  db.run('DELETE FROM registrations WHERE event_id = ?', [req.params.id]);
-  db.run('DELETE FROM events WHERE id = ?', [req.params.id]);
+app.delete('/api/events/:id', requireAdmin, async (req, res) => {
+  await db.run('DELETE FROM registrations WHERE event_id = $1', [req.params.id]);
+  await db.run('DELETE FROM events WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });
 
 // ── Registrations ─────────────────────────────────────────────────────────────
 
-app.post('/api/events/:id/register', requireAuth, (req, res) => {
-  const exists = db.get('SELECT id FROM registrations WHERE user_id = ? AND event_id = ?',
+app.post('/api/events/:id/register', requireAuth, async (req, res) => {
+  const exists = await db.one('SELECT id FROM registrations WHERE user_id = $1 AND event_id = $2',
     [req.session.userId, req.params.id]);
   if (exists) return res.status(400).json({ error: 'Already registered' });
-  db.run('INSERT INTO registrations (user_id, event_id) VALUES (?, ?)',
+  await db.run('INSERT INTO registrations (user_id, event_id) VALUES ($1,$2)',
     [req.session.userId, req.params.id]);
   res.json({ ok: true });
 });
 
-app.delete('/api/events/:id/register', requireAuth, (req, res) => {
-  db.run('DELETE FROM registrations WHERE user_id = ? AND event_id = ?',
+app.delete('/api/events/:id/register', requireAuth, async (req, res) => {
+  await db.run('DELETE FROM registrations WHERE user_id = $1 AND event_id = $2',
     [req.session.userId, req.params.id]);
   res.json({ ok: true });
 });
 
-app.post('/api/events/:id/checkin', requireAuth, (req, res) => {
-  const reg = db.get('SELECT * FROM registrations WHERE user_id = ? AND event_id = ?',
+app.post('/api/events/:id/checkin', requireAuth, async (req, res) => {
+  const reg = await db.one('SELECT * FROM registrations WHERE user_id = $1 AND event_id = $2',
     [req.session.userId, req.params.id]);
   if (!reg) return res.status(400).json({ error: 'Not registered for this event' });
   if (reg.checked_in) return res.status(400).json({ error: 'Already checked in' });
-  db.run("UPDATE registrations SET checked_in=1, checked_in_at=datetime('now') WHERE user_id=? AND event_id=?",
+  await db.run('UPDATE registrations SET checked_in=1, checked_in_at=NOW() WHERE user_id=$1 AND event_id=$2',
     [req.session.userId, req.params.id]);
   res.json({ ok: true });
 });
 
 // Admin: check in any participant
-app.post('/api/admin/events/:id/checkin', requireAdmin, (req, res) => {
+app.post('/api/admin/events/:id/checkin', requireAdmin, async (req, res) => {
   const { user_id } = req.body;
-  const reg = db.get('SELECT * FROM registrations WHERE user_id = ? AND event_id = ?',
+  const reg = await db.one('SELECT * FROM registrations WHERE user_id = $1 AND event_id = $2',
     [user_id, req.params.id]);
   if (!reg) return res.status(400).json({ error: 'Participant not registered for this event' });
-  db.run("UPDATE registrations SET checked_in=1, checked_in_at=datetime('now') WHERE user_id=? AND event_id=?",
+  await db.run('UPDATE registrations SET checked_in=1, checked_in_at=NOW() WHERE user_id=$1 AND event_id=$2',
     [user_id, req.params.id]);
   res.json({ ok: true });
 });
 
 // Admin: registrations for an event
-app.get('/api/admin/events/:id/registrations', requireAdmin, (req, res) => {
-  const regs = db.all(`
-    SELECT r.*, u.full_name, u.username, u.photo_filename
+app.get('/api/admin/events/:id/registrations', requireAdmin, async (req, res) => {
+  const regs = await db.all(`
+    SELECT r.*, u.full_name, u.username,
+      CASE WHEN u.photo_data IS NOT NULL THEN u.id ELSE NULL END AS photo_user_id
     FROM registrations r
     JOIN users u ON r.user_id = u.id
-    WHERE r.event_id = ?
+    WHERE r.event_id = $1
     ORDER BY u.full_name ASC
   `, [req.params.id]);
   res.json(regs);
 });
 
 // Admin: list all users
-app.get('/api/admin/users', requireAdmin, (req, res) => {
-  const users = db.all(
-    'SELECT id, username, full_name, role, photo_filename, admin_notes, created_at FROM users ORDER BY full_name ASC'
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  const users = await db.all(
+    `SELECT id, username, full_name, role, admin_notes, created_at,
+      CASE WHEN photo_data IS NOT NULL THEN id ELSE NULL END AS photo_user_id
+     FROM users ORDER BY full_name ASC`
   );
   res.json(users);
 });
 
 // Admin: update user role
-app.put('/api/admin/users/:id/role', requireAdmin, (req, res) => {
+app.put('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
   const { role } = req.body;
   if (!['admin', 'participant'].includes(role))
     return res.status(400).json({ error: 'Invalid role' });
-  db.run('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
+  await db.run('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
   res.json({ ok: true });
 });
 
 // Admin: update notes on a participant
-app.put('/api/admin/users/:id/notes', requireAdmin, (req, res) => {
+app.put('/api/admin/users/:id/notes', requireAdmin, async (req, res) => {
   const { notes } = req.body;
-  db.run('UPDATE users SET admin_notes = ? WHERE id = ?', [notes?.trim() || null, req.params.id]);
+  await db.run('UPDATE users SET admin_notes = $1 WHERE id = $2', [notes?.trim() || null, req.params.id]);
   res.json({ ok: true });
 });
 
 // Admin: upload / replace participant photo
-app.post('/api/admin/users/:id/photo', requireAdmin, upload.single('photo'), (req, res) => {
+app.post('/api/admin/users/:id/photo', requireAdmin, upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No photo provided' });
-  const user = db.get('SELECT photo_filename FROM users WHERE id = ?', [req.params.id]);
-  if (user?.photo_filename) {
-    const old = path.join(uploadsDir, user.photo_filename);
-    if (fs.existsSync(old)) fs.unlinkSync(old);
-  }
-  db.run('UPDATE users SET photo_filename = ? WHERE id = ?', [req.file.filename, req.params.id]);
-  res.json({ ok: true, filename: req.file.filename });
+  const photoData = req.file.buffer.toString('base64');
+  const photoMime = req.file.mimetype;
+  await db.run('UPDATE users SET photo_data = $1, photo_mime = $2 WHERE id = $3',
+    [photoData, photoMime, req.params.id]);
+  res.json({ ok: true, photo_user_id: parseInt(req.params.id) });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

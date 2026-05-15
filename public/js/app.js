@@ -375,10 +375,10 @@ function toggleArchive() {
   toggleBtn.textContent = open ? `View archive (${count}) ›` : '‹ Hide archive';
 }
 
-function avatarHtml(photoFilename, fullName, size = 'sm') {
+function avatarHtml(photoUserId, fullName, size = 'sm') {
   const initials = (fullName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  if (photoFilename) {
-    return `<img src="uploads/${esc(photoFilename)}" alt="${esc(fullName)}" class="participant-avatar${size === 'lg' ? '-lg' : ''}">`;
+  if (photoUserId) {
+    return `<img src="/api/photos/${photoUserId}" alt="${esc(fullName)}" class="participant-avatar${size === 'lg' ? '-lg' : ''}">`;
   }
   return `<div class="avatar-placeholder${size === 'lg' ? '-lg' : ''}">${initials}</div>`;
 }
@@ -633,7 +633,7 @@ async function viewRegistrations(eventId, title) {
         <thead><tr><th></th><th>Name</th><th>Status</th><th>Action</th></tr></thead>
         <tbody>
           ${regs.map(r => `<tr>
-            <td>${avatarHtml(r.photo_filename, r.full_name)}</td>
+            <td>${avatarHtml(r.photo_user_id, r.full_name)}</td>
             <td><strong>${esc(r.full_name)}</strong><br><small style="color:#888">${esc(r.username)}</small></td>
             <td>${r.checked_in
               ? `<span class="status-badge status-checkedin">Checked In${r.checked_in_at ? ' ' + formatTime(r.checked_in_at) : ''}</span>`
@@ -671,7 +671,7 @@ async function loadAdminUsers() {
         <thead><tr><th></th><th>Name</th><th>Role</th><th>Joined</th><th>Change Role</th><th>Details</th></tr></thead>
         <tbody>
           ${users.map(u => `<tr>
-            <td>${avatarHtml(u.photo_filename, u.full_name)}</td>
+            <td>${avatarHtml(u.photo_user_id, u.full_name)}</td>
             <td>
               <strong>${esc(u.full_name)}</strong><br>
               <small style="color:#888">${esc(u.username)}</small>
@@ -710,7 +710,7 @@ async function openParticipantModal(userId) {
   document.getElementById('participantModalTitle').textContent = u.full_name;
   document.getElementById('participantModalBody').innerHTML = `
     <div style="text-align:center;margin-bottom:16px">
-      ${avatarHtml(u.photo_filename, u.full_name, 'lg')}
+      ${avatarHtml(u.photo_user_id, u.full_name, 'lg')}
       <div style="font-size:0.85rem;color:#888">@${esc(u.username)}</div>
       <span class="status-badge ${u.role === 'admin' ? 'status-checkedin' : 'status-registered'}" style="margin-top:6px;display:inline-block">${u.role}</span>
     </div>
@@ -739,7 +739,7 @@ async function uploadParticipantPhoto(userId) {
   if (data.error) { toast(data.error, 'error'); return; }
   toast('Photo updated!', 'success');
   closeParticipantModal();
-  loadAdminUsers();
+  await loadAdminUsers();
 }
 
 async function saveParticipantNotes(userId) {
