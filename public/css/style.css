@@ -554,6 +554,9 @@ tr:last-child td { border-bottom: none; }
   margin: 0 auto 4px;
 }
 
+.photo-icon { font-size: 2rem; }
+.photo-label { font-size: 0.85rem; color: #888; margin-top: 4px; text-align: center; }
+
 .photo-upload-area:hover { border-color: var(--red); }
 
 .photo-upload-area img {
@@ -736,7 +739,13 @@ tr:last-child td { border-bottom: none; }
 
   .form-group { margin-bottom: 12px; }
 
-  .photo-upload-area { width: 72px; height: 72px; }
+  .photo-upload-area {
+    width: 120px;
+    height: 72px;
+    border-radius: 12px;
+  }
+  .photo-icon { font-size: 1.4rem; }
+  .photo-label { font-size: 0.72rem; margin-top: 2px; }
 
   /* Modal slides up from bottom on phones */
   .modal-overlay {
