@@ -83,7 +83,7 @@ app.post('/api/signup', upload.single('photo'), async (req, res) => {
     req.session.username = username.trim();
     req.session.fullName = full_name.trim();
     req.session.role     = 'participant';
-    res.json({ ok: true, role: 'participant', fullName: full_name.trim() });
+    res.json({ ok: true, role: 'participant', fullName: full_name.trim(), username: username.trim(), photo_user_id: photoData ? rows[0].id : null });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -102,7 +102,7 @@ app.post('/api/login', async (req, res) => {
   req.session.username = user.username;
   req.session.fullName = user.full_name;
   req.session.role     = user.role;
-  res.json({ ok: true, role: user.role, fullName: user.full_name });
+  res.json({ ok: true, role: user.role, fullName: user.full_name, username: user.username, photo_user_id: user.photo_data ? user.id : null });
 });
 
 app.post('/api/logout', (req, res) => {
