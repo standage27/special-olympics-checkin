@@ -252,7 +252,7 @@ function renderCalendar(containerId, events, isAdmin) {
       <div class="cal-day${isToday ? ' cal-today' : ''}">
         <span class="cal-day-num">${day}</span>
         <div class="cal-events">
-          ${dayEvs.map(e => `<div class="cal-event-pill" onclick="showCalEventDetail(${e.id},${isAdmin})">${esc(e.title)}${e.recurrence ? ' ↻' : ''}</div>`).join('')}
+          ${dayEvs.map(e => `<div class="cal-event-pill" data-eid="${e.id}" data-admin="${isAdmin ? 1 : 0}">${esc(e.title)}${e.recurrence ? ' ↻' : ''}</div>`).join('')}
         </div>
       </div>`;
   }
@@ -270,7 +270,8 @@ function calNav(dir, containerId, isAdmin) {
 
 function showCalEventDetail(id, isAdmin) {
   const events = isAdmin ? adminAllEvents : allEvents;
-  const e = events.find(ev => ev.id === id);
+  // eslint-disable-next-line eqeqeq — intentional: handle number/string id mismatch from pg
+  const e = events.find(ev => ev.id == id);
   if (!e) return;
 
   const start   = e.start_time || e.date_time;
@@ -867,7 +868,15 @@ function toast(msg, type = 'success') {
 
 // Close modals on backdrop click
 ['eventModal','regsModal','eventTypeModal','participantModal','eventDetailModal','profileModal'].forEach(id => {
-  document.getElementById(id).addEventListener('click', e => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', e => {
     if (e.target.id === id) document.getElementById(id).classList.remove('open');
   });
+});
+
+// Calendar event pill click — delegation so it survives container re-renders
+document.addEventListener('click', evt => {
+  const pill = evt.target.closest('.cal-event-pill');
+  if (!pill) return;
+  showCalEventDetail(Number(pill.dataset.eid), pill.dataset.admin === '1');
 });
