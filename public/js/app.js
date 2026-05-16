@@ -257,13 +257,30 @@ function renderCalendar(containerId, events, isAdmin) {
       <div class="cal-day${isToday ? ' cal-today' : ''}">
         <span class="cal-day-num">${day}</span>
         <div class="cal-events">
-          ${dayEvs.map(e => `<div class="cal-event-pill" data-eid="${e.id}" data-admin="${isAdmin ? 1 : 0}">${esc(e.title)}${e.recurrence ? ' ↻' : ''}</div>`).join('')}
+          ${dayEvs.map(e => {
+              const time         = (e.start_time || '').slice(11, 16);
+              const isRegistered = !isAdmin && e.registration_id;
+              const pillCls      = isRegistered ? 'cal-event-pill cal-pill-registered' : 'cal-event-pill';
+              const meta         = isAdmin
+                ? `${time}${+e.registrant_count > 0 ? ` · ${e.registrant_count} attending` : ` · ${e.registrant_count} attending`}`
+                : `${time}${isRegistered ? ' · ✓ Registered' : ' · Tap to register'}`;
+              return `<div class="${pillCls}" data-eid="${e.id}" data-admin="${isAdmin ? 1 : 0}">
+                <div class="cal-pill-title">${esc(e.title)}${e.recurrence ? ' ↻' : ''}</div>
+                <div class="cal-pill-meta">${meta}</div>
+              </div>`;
+            }).join('')}
         </div>
       </div>`;
   }
 
   html += `</div>`;
   container.innerHTML = html;
+
+  container.querySelectorAll('.cal-event-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      showCalEventDetail(Number(pill.dataset.eid), pill.dataset.admin === '1');
+    });
+  });
 }
 
 function calNav(dir, containerId, isAdmin) {
@@ -275,9 +292,8 @@ function calNav(dir, containerId, isAdmin) {
 
 function showCalEventDetail(id, isAdmin) {
   const events = isAdmin ? adminAllEvents : allEvents;
-  // eslint-disable-next-line eqeqeq — intentional: handle number/string id mismatch from pg
   const e = events.find(ev => ev.id == id);
-  if (!e) return;
+  if (!e) { toast('Could not load event details. Please refresh and try again.', 'error'); return; }
 
   const start   = e.start_time || e.date_time;
   const end     = e.end_time;
@@ -880,9 +896,3 @@ function toast(msg, type = 'success') {
   });
 });
 
-// Calendar event pill click — delegation so it survives container re-renders
-document.addEventListener('click', evt => {
-  const pill = evt.target.closest('.cal-event-pill');
-  if (!pill) return;
-  showCalEventDetail(Number(pill.dataset.eid), pill.dataset.admin === '1');
-});

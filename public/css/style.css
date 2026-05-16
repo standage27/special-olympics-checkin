@@ -920,7 +920,7 @@ tr:last-child td { border-bottom: none; }
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 6px;
-  min-height: 80px;
+  min-height: 90px;
   padding: 6px;
   overflow: hidden;
 }
@@ -957,17 +957,35 @@ tr:last-child td { border-bottom: none; }
   background: var(--red);
   color: #fff;
   border-radius: 4px;
-  padding: 2px 5px;
+  padding: 3px 5px;
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: background 0.15s;
+  transition: background 0.15s, opacity 0.15s;
+  line-height: 1.2;
 }
 
-.cal-event-pill:hover { background: var(--red-dark); }
+.cal-event-pill:hover { opacity: 0.85; }
+
+.cal-pill-registered { background: #2a9d4e; }
+.cal-pill-registered:hover { background: #228040; opacity: 1; }
+
+.cal-pill-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-pill-meta {
+  font-size: 0.65rem;
+  font-weight: 400;
+  opacity: 0.9;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 @media (max-width: 768px) {
   .cal-day { min-height: 60px; padding: 4px; }
