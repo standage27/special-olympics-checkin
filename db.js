@@ -29,9 +29,11 @@ async function init() {
       photo_data    TEXT,
       photo_mime    TEXT,
       admin_notes   TEXT,
+      phone         TEXT,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS events (

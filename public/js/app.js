@@ -70,6 +70,7 @@ async function doSignup(e) {
   fd.append('username',  document.getElementById('signupUsername').value);
   fd.append('password',  document.getElementById('signupPassword').value);
   fd.append('full_name', document.getElementById('signupName').value);
+  fd.append('phone',     document.getElementById('signupPhone').value);
   const photoFile = document.getElementById('signupPhoto').files[0];
   if (photoFile) fd.append('photo', photoFile);
 
@@ -90,6 +91,7 @@ async function doLogout() {
   // Clear signup form so previous user's details don't persist
   document.getElementById('signupName').value = '';
   document.getElementById('signupUsername').value = '';
+  document.getElementById('signupPhone').value = '';
   document.getElementById('signupPassword').value = '';
   document.getElementById('signupPhoto').value = '';
   const preview = document.getElementById('photoPreview');
@@ -101,6 +103,7 @@ async function doLogout() {
 // ── Profile modal ─────────────────────────────────────────────────────────────
 function openProfileModal() {
   document.getElementById('profileFullName').value = currentUser.fullName || '';
+  document.getElementById('profilePhone').value    = currentUser.phone || '';
   document.getElementById('profileUsername').value = currentUser.username || '';
   document.getElementById('profileRole').value     = currentUser.role || '';
   document.getElementById('profileError').classList.remove('show');
@@ -115,12 +118,14 @@ function closeProfileModal() {
 
 async function saveProfileName() {
   const fullName = document.getElementById('profileFullName').value.trim();
+  const phone    = document.getElementById('profilePhone').value.trim();
   const errEl    = document.getElementById('profileError');
   errEl.classList.remove('show');
   if (!fullName) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
-  const data = await api('PUT', '/api/profile/name', { full_name: fullName });
+  const data = await api('PUT', '/api/profile/name', { full_name: fullName, phone: phone || null });
   if (data.error) { errEl.textContent = data.error; errEl.classList.add('show'); return; }
   currentUser.fullName = data.fullName;
+  currentUser.phone    = data.phone;
   document.getElementById('headerGreeting').textContent = `Hi, ${data.fullName}`;
   updateHeaderAvatar();
   toast('Profile updated!', 'success');
@@ -798,6 +803,7 @@ async function openParticipantModal(userId) {
       <span class="status-badge ${u.role === 'admin' ? 'status-checkedin' : 'status-registered'}" style="margin-top:6px;display:inline-block">${u.role}</span>
     </div>
     <div style="margin-bottom:4px;font-size:0.8rem;color:#555;font-weight:600">Joined: ${formatDate(u.created_at)}</div>
+    ${u.phone ? `<div style="margin-bottom:12px;font-size:0.88rem;color:#444">📞 ${esc(u.phone)}</div>` : ''}
 
     <div class="form-group" style="margin-top:16px">
       <label>Upload / Replace Photo</label>

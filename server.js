@@ -62,7 +62,7 @@ app.get('/api/photos/:userId', async (req, res) => {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 app.post('/api/signup', upload.single('photo'), async (req, res) => {
-  const { username, password, full_name } = req.body;
+  const { username, password, full_name, phone } = req.body;
   if (!username || !password || !full_name)
     return res.status(400).json({ error: 'All fields are required' });
   if (username.length < 3)
@@ -74,16 +74,17 @@ app.post('/api/signup', upload.single('photo'), async (req, res) => {
   const hash      = bcrypt.hashSync(password, 10);
   const photoData = req.file ? req.file.buffer.toString('base64') : null;
   const photoMime = req.file ? req.file.mimetype : null;
+  const phoneVal  = phone?.trim() || null;
   try {
     const rows = await db.all(
-      'INSERT INTO users (username, password_hash, full_name, photo_data, photo_mime) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [username.trim(), hash, full_name.trim(), photoData, photoMime]
+      'INSERT INTO users (username, password_hash, full_name, photo_data, photo_mime, phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [username.trim(), hash, full_name.trim(), photoData, photoMime, phoneVal]
     );
     req.session.userId   = rows[0].id;
     req.session.username = username.trim();
     req.session.fullName = full_name.trim();
     req.session.role     = 'participant';
-    res.json({ ok: true, role: 'participant', fullName: full_name.trim(), username: username.trim(), photo_user_id: photoData ? rows[0].id : null });
+    res.json({ ok: true, role: 'participant', fullName: full_name.trim(), username: username.trim(), phone: phoneVal, photo_user_id: photoData ? rows[0].id : null });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -113,7 +114,7 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/me', async (req, res) => {
   if (!req.session.userId) return res.json({ loggedIn: false });
   const user = await db.one(
-    'SELECT CASE WHEN photo_data IS NOT NULL THEN id ELSE NULL END AS photo_user_id FROM users WHERE id = $1',
+    'SELECT phone, CASE WHEN photo_data IS NOT NULL THEN id ELSE NULL END AS photo_user_id FROM users WHERE id = $1',
     [req.session.userId]
   );
   res.json({
@@ -122,6 +123,7 @@ app.get('/api/me', async (req, res) => {
     username:      req.session.username,
     fullName:      req.session.fullName,
     role:          req.session.role,
+    phone:         user?.phone || null,
     photo_user_id: user?.photo_user_id || null
   });
 });
@@ -309,13 +311,14 @@ app.put('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Profile: update own name
+// Profile: update own name and phone
 app.put('/api/profile/name', requireAuth, async (req, res) => {
-  const { full_name } = req.body;
+  const { full_name, phone } = req.body;
   if (!full_name?.trim()) return res.status(400).json({ error: 'Name is required' });
-  await db.run('UPDATE users SET full_name = $1 WHERE id = $2', [full_name.trim(), req.session.userId]);
+  const phoneVal = phone?.trim() || null;
+  await db.run('UPDATE users SET full_name = $1, phone = $2 WHERE id = $3', [full_name.trim(), phoneVal, req.session.userId]);
   req.session.fullName = full_name.trim();
-  res.json({ ok: true, fullName: full_name.trim() });
+  res.json({ ok: true, fullName: full_name.trim(), phone: phoneVal });
 });
 
 // Profile: update own photo
